@@ -106,7 +106,9 @@ app.MapGet("/8/{typeEstateId}/{realtorId}/{critariaId}",
         ev => ev.EstateId,
         (sale, ev) => ev.Value
     ).Average();
-});
+})
+.WithDescription("Определить среднюю оценку апартаментов по критерию «Безопасность», проданных указанным риэлтором")
+.WithOpenApi();
 
 app.MapGet("/9/{typeEstateId}/{startDate}-{endDate}",
 (int typeEstateId, DateTime startDate, DateTime endDate, ApplicationContext db) =>
@@ -117,7 +119,9 @@ app.MapGet("/9/{typeEstateId}/{startDate}-{endDate}",
         sale.Estate.Type == typeEstateId);
 
     return sales.Sum(sale => sale.Cost) / sales.Sum(sale => sale.Estate.Square);
-});
+})
+.WithDescription("Определить среднюю продажную стоимость 1м2 для квартир, которые были проданы в указанную дату «ОТ» и «ДО»")
+.WithOpenApi();
 
 
 app.MapGet("/10/", (ApplicationContext db) =>
@@ -133,7 +137,10 @@ app.MapGet("/10/", (ApplicationContext db) =>
             premia = sales.Count() * sales.Sum(sale => sale.Cost) * 0.05 * (1 - 0.13)
         }
     );
-});
+})
+.WithDescription("Вывести информацию о премии риэлтора, которая рассчитывается по формуле: Количество проданных квартир*Стоимость*5%-НДФЛ (13%)")
+.WithOpenApi();
+
 
 app.MapGet("/11/{estateType}", (int estateType, ApplicationContext db) =>
 {
@@ -149,7 +156,10 @@ app.MapGet("/11/{estateType}", (int estateType, ApplicationContext db) =>
             count = sales.Count()
         }
     );
-});
+})
+.WithDescription("Вывести информацию о количестве квартир, проданных каждым риэлтором")
+.WithOpenApi();
+
 
 app.MapGet("/12/{floor}", (int floor, ApplicationContext db) =>
 {
@@ -163,7 +173,10 @@ app.MapGet("/12/{floor}", (int floor, ApplicationContext db) =>
             averageCost = estates.Average(estate => estate.Price)
         }
     );
-});
+})
+.WithDescription("Вывести информацию о средней стоимости объектов недвижимости, расположенных на 2 этаже по каждому материалу здания")
+.WithOpenApi();
+
 
 
 app.MapGet("/13", (ApplicationContext db) =>
@@ -178,7 +191,10 @@ app.MapGet("/13", (ApplicationContext db) =>
             estates = estates.OrderByDescending(estate => estate.Price).Take(3).ToList()
         }
     );
-});
+})
+.WithDescription("Вывести информацию о трех самых дорогих объектах недвижимости, расположенных в каждом районе")
+.WithOpenApi();
+
 
 app.MapGet("/14/{districtId}", (int districtId, ApplicationContext db) =>
 {
@@ -188,25 +204,37 @@ app.MapGet("/14/{districtId}", (int districtId, ApplicationContext db) =>
         .Where((estate) => estate.DistrictId == districtId)
         .Except(selledEstates)
         .Select(estate => estate.Address);
-});
+})
+.WithDescription("Определить адреса квартир, расположенных в указанном районе, которые еще не проданы.")
+.WithOpenApi();
+
 
 app.MapGet("/15/{districtId}", (int districtId, ApplicationContext db) =>
 {
     return db.Sales.Where(sale => sale.Estate.DistrictId == districtId && sale.Cost / sale.Estate.Price < 1.2)
         .Select(sale => new { address = sale.Estate.Address, district = sale.Estate.District });
-});
+})
+.WithDescription("Вывести информацию об объектах недвижимости, у которых разница между заявленной и продажной стоимостью составляет не более 20 % и расположенных в указанном районе")
+.WithOpenApi();
+
 
 app.MapGet("/16/{realtorId}", (int realtorId, ApplicationContext db) =>
 {
     return db.Sales.Where(sale => sale.RealtorId == realtorId && sale.Cost - sale.Estate.Price > 100000)
         .Select(sale => new { address = sale.Estate.Address, district = sale.Estate.District });
-});
+})
+.WithDescription("Вывести информацию об объектах недвижимости, у которых разница между заявленной и продажной стоимостью составляет больше 100000 рублей и проданную указанным риэлтором")
+.WithOpenApi();
+
 
 app.MapGet("/17/{year}/{realtorId}", (int year, int realtorId, ApplicationContext db) =>
 {
     return db.Sales.Where(sale => sale.RealtorId == realtorId && sale.DateOfRelease.Year == year)
         .Select(sale => new { address = sale.Estate.Address, difference = (sale.Cost / sale.Estate.Price) - 1 });
-});
+})
+.WithDescription("Вывести разницу в % между заявленной и продажной стоимостью для объектов недвижимости, проданных указанным риэлтором в текущем году")
+.WithOpenApi();
+
 
 app.MapGet("/18", (ApplicationContext db) =>
 {
@@ -222,13 +250,19 @@ app.MapGet("/18", (ApplicationContext db) =>
                 .ToList()
         }
     );
-});
+})
+.WithDescription("Определить адреса квартир, стоимость 1м2 которых меньше средней по району.")
+.WithOpenApi();
+
 
 app.MapGet("/19/{year}", (int year, ApplicationContext db) =>
 {
     return db.Realtors.Except(
         db.Sales.Where(s => s.DateOfRelease.Year == year).Select(s => s.Realtor));
-});
+})
+.WithDescription("Определить ФИО риэлторов, которые ничего не продали в текущем году.")
+.WithOpenApi();
+
 
 app.MapGet("/20/{dateTime}", (DateTime dateTime, ApplicationContext db) =>
 {
@@ -246,6 +280,9 @@ app.MapGet("/20/{dateTime}", (DateTime dateTime, ApplicationContext db) =>
             }
         ).SelectMany(g => g.cheapRealEstate)
         .Select(est => new { address = est.Address, status = est.Status });
-});
+})
+.WithDescription("Вывести адреса объектов недвижимости, стоимость 1м2 которых меньше средней всех объектов недвижимости по району, объявления о которых были размещены не более 4 месяцев назад.")
+.WithOpenApi();
+
 
 app.Run();
