@@ -9,6 +9,7 @@ namespace Lab5
         public DbSet<Material> Materials { get; set; } = null!;
         public DbSet<RealEstate> RealEstates { get; set; } = null!;
         public DbSet<Criteria> Criteria { get; set; } = null!;
+        public DbSet<Evaluation> Evaluations { get; set; } = null!;
         public DbSet<Realtor> Realtors { get; set; } = null!;
         public DbSet<Sale> Sales { get; set; } = null!;
 
