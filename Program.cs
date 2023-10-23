@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Lab5;
 using Lab5.Models;
 using Microsoft.EntityFrameworkCore;
@@ -126,13 +127,125 @@ app.MapGet("/10/", (ApplicationContext db) =>
         db.Sales,
         realtor => realtor.Id,
         sale => sale.RealtorId,
-        (realtor, sales) => new {
+        (realtor, sales) => new
+        {
             fio = $"{realtor.Surname} {realtor.FirstName} {realtor.ThirdName}",
             premia = sales.Count() * sales.Sum(sale => sale.Cost) * 0.05 * (1 - 0.13)
         }
     );
 });
 
+app.MapGet("/11/{estateType}", (int estateType, ApplicationContext db) =>
+{
+    var filtredSales = db.Sales.Where(sale => sale.Estate.Type == estateType);
 
+    return db.Realtors.GroupJoin(
+        filtredSales,
+        realtor => realtor.Id,
+        sale => sale.RealtorId,
+        (realtor, sales) => new
+        {
+            fio = $"{realtor.Surname} {realtor.FirstName} {realtor.ThirdName}",
+            count = sales.Count()
+        }
+    );
+});
+
+app.MapGet("/12/{floor}", (int floor, ApplicationContext db) =>
+{
+    return db.Materials.GroupJoin(
+        db.RealEstates.Where(estate => estate.Floor == floor),
+        material => material,
+        estate => estate.Material,
+        (material, estates) => new
+        {
+            material = material.Name,
+            averageCost = estates.Average(estate => estate.Price)
+        }
+    );
+});
+
+
+app.MapGet("/13", (ApplicationContext db) =>
+{
+    return db.Districts.GroupJoin(
+        db.RealEstates,
+        district => district,
+        estate => estate.District,
+        (district, estates) => new
+        {
+            district = district.Name,
+            estates = estates.OrderByDescending(estate => estate.Price).Take(3).ToList()
+        }
+    );
+});
+
+app.MapGet("/14/{districtId}", (int districtId, ApplicationContext db) =>
+{
+    var selledEstates = db.Sales.Select(sale => sale.Estate);
+
+    return db.RealEstates
+        .Where((estate) => estate.DistrictId == districtId)
+        .Except(selledEstates)
+        .Select(estate => estate.Address);
+});
+
+app.MapGet("/15/{districtId}", (int districtId, ApplicationContext db) =>
+{
+    return db.Sales.Where(sale => sale.Estate.DistrictId == districtId && sale.Cost / sale.Estate.Price < 1.2)
+        .Select(sale => new { address = sale.Estate.Address, district = sale.Estate.District });
+});
+
+app.MapGet("/16/{realtorId}", (int realtorId, ApplicationContext db) =>
+{
+    return db.Sales.Where(sale => sale.RealtorId == realtorId && sale.Cost - sale.Estate.Price > 100000)
+        .Select(sale => new { address = sale.Estate.Address, district = sale.Estate.District });
+});
+
+app.MapGet("/17/{year}/{realtorId}", (int year, int realtorId, ApplicationContext db) =>
+{
+    return db.Sales.Where(sale => sale.RealtorId == realtorId && sale.DateOfRelease.Year == year)
+        .Select(sale => new { address = sale.Estate.Address, difference = (sale.Cost / sale.Estate.Price) - 1 });
+});
+
+app.MapGet("/18", (ApplicationContext db) =>
+{
+    return db.Districts.GroupJoin(
+        db.RealEstates,
+        district => district,
+        estate => estate.District,
+        (district, estates) => new
+        {
+            district,
+            cheapRealEstate = estates
+                .Where(estate => estate.Price / estate.Square < estates.Average(e => e.Price / e.Square))
+                .ToList()
+        }
+    );
+});
+
+app.MapGet("/19/{year}", (int year, ApplicationContext db) =>
+{
+    return db.Realtors.Except(
+        db.Sales.Where(s => s.DateOfRelease.Year == year).Select(s => s.Realtor));
+});
+
+app.MapGet("/20/{dateTime}", (DateTime dateTime, ApplicationContext db) =>
+{
+    return db.Districts.GroupJoin(
+            db.RealEstates,
+            district => district,
+            estate => estate.District,
+            (district, estates) => new
+            {
+                district,
+                cheapRealEstate = estates
+                    .Where(estate => (dateTime - estate.DateOfAnnouncement).Days < 120
+                        && estate.Price / estate.Square < estates.Average(e => e.Price / e.Square))
+                    .ToList()
+            }
+        ).SelectMany(g => g.cheapRealEstate)
+        .Select(est => new { address = est.Address, status = est.Status });
+});
 
 app.Run();
