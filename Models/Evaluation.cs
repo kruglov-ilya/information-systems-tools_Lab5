@@ -7,6 +7,7 @@
         public RealEstate Estate { get; set; } = null!;
         public DateTime DateOfRelease { get; set; }
         public int CriteriaId { get; set; }
+        public Criteria Criteria { get; set; } = null!;
         public int Value { get; set; }
     }
 }

@@ -1,10 +1,11 @@
 using Lab5;
+using Lab5.Models;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-var connection = builder.Configuration.GetConnectionString("DefaultConnection") 
+var connection = builder.Configuration.GetConnectionString("DefaultConnection")
                     ?? throw new Exception("Database connection string not set");
 // добавляем контекст ApplicationContext в качестве сервиса в приложение
 builder.Services.AddDbContext<ApplicationContext>(options => options.UseSqlServer(connection));
@@ -21,29 +22,117 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-var summaries = new[]
+app.MapGet("/1/{districtId}/{minPrice}-{maxPrice}", (int districtId, int minPrice, int maxPrice, ApplicationContext db) =>
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast = Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
+    return db.RealEstates
+    .Where(estate => estate.DistrictId == districtId && estate.Price > minPrice && estate.Price < maxPrice)
+    .OrderBy(estate => estate.Price)
+    .ToList();
 })
-.WithName("GetWeatherForecast")
+.WithDescription("Вывести объекты недвижимости, расположенные в указанном районе стоимостью «ОТ» и «ДО»")
 .WithOpenApi();
 
-app.Run();
-
-internal record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+app.MapGet("/2/{countRooms}", (int countRooms, ApplicationContext db) =>
 {
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
+    return db.Sales
+    .Where(sale => sale.Estate.NumberOftRooms == countRooms)
+    .Select(sale => sale.Realtor.Surname)
+    .ToList();
+})
+.WithDescription("Вывести фамилии риэлтор, которые продали двухкомнатные объекты недвижимости")
+.WithOpenApi();
+
+app.MapGet("/3/{floor}", (int floor, ApplicationContext db) =>
+{
+    return db.Sales
+    .Where(sale => sale.Estate.Floor == floor)
+    .Select(sale => new { estateId = sale.EstateId, castSubPrice = sale.Cost - sale.Estate.Price })
+    .ToList();
+})
+.WithDescription("Вывести разницу между заявленной и продажной стоимостью объектов недвижимости, расположенных на 2 этаже")
+.WithOpenApi();
+
+app.MapGet("/4/{countRooms}/{districtId}", (int countRooms, int districtId, ApplicationContext db) =>
+{
+    return db.RealEstates
+    .Where(estate => estate.NumberOftRooms == countRooms && estate.DistrictId == districtId)
+    .Sum(estate => estate.Price);
+})
+.WithDescription("Определить общую стоимость всех двухкомнатных объектов недвижимости, расположенных в указанном районе")
+.WithOpenApi();
+
+app.MapGet("/5/{realtorId}", (int realtorId, ApplicationContext db) =>
+{
+    var prices = db.Sales.Where(sale => sale.RealtorId == realtorId).Select(sale => sale.Estate.Price);
+    return new
+    {
+        maxPrice = prices.Max(),
+        minPrice = prices.Min()
+    };
+})
+.WithDescription("Определить максимальную и минимальную стоимости объекта недвижимости, проданного указанным риэлтором")
+.WithOpenApi();
+
+app.MapGet("/6/{districtId}", (int districtId, ApplicationContext db) =>
+{
+    return db.RealEstates.Where(estate => estate.DistrictId == districtId).Average(estate => estate.Price);
+})
+.WithDescription("Определить среднюю оценку объектов недвижимости, расположенных в указанном районе")
+.WithOpenApi();
+
+app.MapGet("/7/{floor}", (int floor, ApplicationContext db) =>
+{
+    return db.Districts
+    .Select(district => new
+    {
+        name = district.Name,
+        count = db.RealEstates
+        .Where(estate => estate.DistrictId == district.Id).Count()
+    });
+})
+.WithDescription("Вывести информацию о количестве объектов недвижимости, расположенных на 2 этаже по каждому району")
+.WithOpenApi();
+
+
+app.MapGet("/8/{typeEstateId}/{realtorId}/{critariaId}",
+(int typeEstateId, int realtorId, int criteriaId, ApplicationContext db) =>
+{
+    return db.Sales
+    .Where(sale => sale.Estate.Type == typeEstateId && sale.RealtorId == realtorId)
+    .Join(
+        db.Evaluations.Where(ev => ev.CriteriaId == criteriaId),
+        sale => sale.Id,
+        ev => ev.EstateId,
+        (sale, ev) => ev.Value
+    ).Average();
+});
+
+app.MapGet("/9/{typeEstateId}/{startDate}-{endDate}",
+(int typeEstateId, DateTime startDate, DateTime endDate, ApplicationContext db) =>
+{
+    var sales = db.Sales
+    .Where(sale => sale.DateOfRelease > startDate &&
+        sale.DateOfRelease < endDate &&
+        sale.Estate.Type == typeEstateId);
+
+    return sales.Sum(sale => sale.Cost) / sales.Sum(sale => sale.Estate.Square);
+});
+
+
+app.MapGet("/10/", (ApplicationContext db) =>
+{
+    return db.Realtors
+    .GroupJoin(
+        db.Sales,
+        realtor => realtor.Id,
+        sale => sale.RealtorId,
+        (realtor, sales) => new {
+            fio = $"{realtor.Surname} {realtor.FirstName} {realtor.ThirdName}",
+            premia = sales.Count() * sales.Sum(sale => sale.Cost) * 0.05 * (1 - 0.13)
+        }
+    );
+});
+
+
+
+app.Run();
